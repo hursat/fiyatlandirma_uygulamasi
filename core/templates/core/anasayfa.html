@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarife Karşılaştırma</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .table-hover tbody tr:hover { background-color: #f1f1f1; }
+        .bg-zaml { background-color: #e6fffa; } /* Hafif yeşil */
+        .bg-yeni { background-color: #e7f1ff; } /* Hafif mavi */
+        .bg-sil { background-color: #ffe6e6; }  /* Hafif kırmızı */
+        .text-up { color: green; font-weight: bold; }
+        .text-down { color: red; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="display-6 fw-bold text-primary">Tarife Karşılaştırma Aracı</h1>
+        <p class="text-muted">Eski ve Yeni yıl fiyat listelerini yükleyerek farkları analiz edin.</p>
+    </div>
+
+    <div class="card shadow-sm mb-4 border-0">
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data" class="row g-3 align-items-end">
+                {% csrf_token %}
+                <div class="col-md-5">
+                    <label class="form-label fw-bold">Eski Yıl Listesi (Excel)</label>
+                    {{ form.eski_yil_dosyasi }}
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label fw-bold">Yeni Yıl Listesi (Excel)</label>
+                    {{ form.yeni_yil_dosyasi }}
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100 py-2">
+                        Analiz Et
+                    </button>
+                </div>
+            </form>
+            {% if hata %}
+                <div class="alert alert-danger mt-3 mb-0">{{ hata }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if veriler %}
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3">
+            <h5 class="mb-0 text-secondary">Analiz Sonuçları</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered mb-0 align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Hizmet Adı</th>
+                        <th class="text-end">Eski Fiyat</th>
+                        <th class="text-end">Yeni Fiyat</th>
+                        <th class="text-end">Fark</th>
+                        <th class="text-center">Değişim %</th>
+                        <th class="text-center">Durum</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for satir in veriler %}
+                    <tr class="
+                        {% if satir.Durum == 'Yeni Eklendi' %}bg-yeni
+                        {% elif satir.Durum == 'Listeden Çıkarıldı' %}bg-sil
+                        {% elif satir.Durum == 'Zamlandı' %}bg-zaml
+                        {% endif %}">
+                        
+                        <td class="fw-semibold">{{ satir.Hizmet }}</td>
+                        <td class="text-end">{{ satir.Fiyat_eski }}</td>
+                        <td class="text-end">{{ satir.Fiyat_yeni }}</td>
+                        <td class="text-end">{{ satir.Fark }}</td>
+                        
+                        <td class="text-center">
+                            {% if satir.Degisim_Yuzde != '-' %}
+                                <span class="{% if satir.Degisim_Yuzde > 0 %}text-up{% elif satir.Degisim_Yuzde < 0 %}text-down{% endif %}">
+                                    %{{ satir.Degisim_Yuzde|floatformat:2 }}
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        
+                        <td class="text-center">
+                            <span class="badge 
+                                {% if satir.Durum == 'Yeni Eklendi' %}bg-primary
+                                {% elif satir.Durum == 'Listeden Çıkarıldı' %}bg-danger
+                                {% elif satir.Durum == 'Değişmedi' %}bg-secondary
+                                {% else %}bg-success{% endif %}">
+                                {{ satir.Durum }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+</body>
+</html>
