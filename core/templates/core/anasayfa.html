@@ -12,14 +12,15 @@
         .bg-sil { background-color: #ffe6e6; }  /* Hafif kırmızı */
         .text-up { color: green; font-weight: bold; }
         .text-down { color: red; font-weight: bold; }
+        .font-monospace { font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; }
     </style>
 </head>
 <body class="bg-light">
 
-<div class="container py-5">
+<div class="container-fluid py-5 px-4">
     <div class="text-center mb-5">
         <h1 class="display-6 fw-bold text-primary">Tarife Karşılaştırma Aracı</h1>
-        <p class="text-muted">Eski ve Yeni yıl fiyat listelerini yükleyerek farkları analiz edin.</p>
+        <p class="text-muted">Yeni ve Eski listeleri yan yana analiz edin.</p>
     </div>
 
     <div class="card shadow-sm mb-4 border-0">
@@ -48,19 +49,21 @@
 
     {% if veriler %}
     <div class="card shadow-sm border-0">
-        <div class="card-header bg-white py-3">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <h5 class="mb-0 text-secondary">Analiz Sonuçları</h5>
+            <span class="badge bg-dark">{{ veriler|length }} Kalem İşlendi</span>
         </div>
         <div class="table-responsive">
             <table class="table table-bordered mb-0 align-middle">
                 <thead class="table-dark">
                     <tr>
-                        <th>Hizmet Adı</th>
-                        <th class="text-end">Eski Fiyat</th>
-                        <th class="text-end">Yeni Fiyat</th>
-                        <th class="text-end">Fark</th>
-                        <th class="text-center">Değişim %</th>
-                        <th class="text-center">Durum</th>
+                        <th style="width: 25%;">Yeni Hizmet Adı</th>
+                        <th class="text-end" style="width: 10%;">Yeni Fiyat</th>
+                        <th style="width: 25%;">Eski Hizmet Adı</th>
+                        <th class="text-end" style="width: 10%;">Eski Fiyat</th>
+                        <th class="text-end" style="width: 10%;">Fark</th>
+                        <th class="text-center" style="width: 10%;">Değişim %</th>
+                        <th class="text-center" style="width: 10%;">Durum</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -71,12 +74,21 @@
                         {% elif satir.Durum == 'Zamlandı' %}bg-zaml
                         {% endif %}">
                         
-                        <td class="fw-semibold">{{ satir.Hizmet }}</td>
-                        <td class="text-end">{{ satir.Fiyat_eski }}</td>
-                        <td class="text-end">{{ satir.Fiyat_yeni }}</td>
-                        <td class="text-end">{{ satir.Fark }}</td>
+                        <td class="fw-semibold">{{ satir.Yeni_Hizmet }}</td>
+                        <td class="text-end font-monospace">
+                            {% if satir.Yeni_Fiyat != '-' %}{{ satir.Yeni_Fiyat }} TL{% else %}-{% endif %}
+                        </td>
                         
-                        <td class="text-center">
+                        <td class="text-muted">{{ satir.Eski_Hizmet }}</td>
+                        <td class="text-end font-monospace text-muted">
+                            {% if satir.Eski_Fiyat != '-' %}{{ satir.Eski_Fiyat }} TL{% else %}-{% endif %}
+                        </td>
+                        
+                        <td class="text-end font-monospace fw-bold">
+                            {% if satir.Fark != '-' %}{{ satir.Fark }} TL{% else %}-{% endif %}
+                        </td>
+                        
+                        <td class="text-center font-monospace">
                             {% if satir.Degisim_Yuzde != '-' %}
                                 <span class="{% if satir.Degisim_Yuzde > 0 %}text-up{% elif satir.Degisim_Yuzde < 0 %}text-down{% endif %}">
                                     %{{ satir.Degisim_Yuzde|floatformat:2 }}
