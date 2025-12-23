@@ -6,104 +6,83 @@
     <title>Tarife Karşılaştırma</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .table-hover tbody tr:hover { background-color: #f1f1f1; }
-        .bg-zaml { background-color: #e6fffa; } /* Hafif yeşil */
-        .bg-yeni { background-color: #e7f1ff; } /* Hafif mavi */
-        .bg-sil { background-color: #ffe6e6; }  /* Hafif kırmızı */
-        .text-up { color: green; font-weight: bold; }
-        .text-down { color: red; font-weight: bold; }
-        .font-monospace { font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; }
+        .table { font-size: 0.85rem; }
+        .bg-zaml { background-color: #f0fff4; } 
+        .bg-yeni { background-color: #ebf8ff; } 
+        .bg-sil { background-color: #fff5f5; }  
+        .text-up { color: #2f855a; font-weight: bold; }
+        .text-down { color: #c53030; font-weight: bold; }
+        .font-monospace { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+        .sticky-header th { position: sticky; top: 0; z-index: 10; }
     </style>
 </head>
 <body class="bg-light">
 
-<div class="container-fluid py-5 px-4">
-    <div class="text-center mb-5">
-        <h1 class="display-6 fw-bold text-primary">Tarife Karşılaştırma Aracı</h1>
-        <p class="text-muted">Yeni ve Eski listeleri yan yana analiz edin.</p>
+<div class="container-fluid py-4 px-3">
+    <div class="text-center mb-4">
+        <h2 class="fw-bold text-primary">Tarife Karşılaştırma Paneli</h2>
     </div>
 
     <div class="card shadow-sm mb-4 border-0">
-        <div class="card-body p-4">
-            <form method="post" enctype="multipart/form-data" class="row g-3 align-items-end">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
                 {% csrf_token %}
                 <div class="col-md-5">
-                    <label class="form-label fw-bold">Eski Yıl Listesi (Excel)</label>
+                    <label class="form-label small fw-bold">Eski Liste</label>
                     {{ form.eski_yil_dosyasi }}
                 </div>
                 <div class="col-md-5">
-                    <label class="form-label fw-bold">Yeni Yıl Listesi (Excel)</label>
+                    <label class="form-label small fw-bold">Yeni Liste</label>
                     {{ form.yeni_yil_dosyasi }}
                 </div>
                 <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100 py-2">
-                        Analiz Et
-                    </button>
+                    <button type="submit" class="btn btn-primary w-100">Analiz Et</button>
                 </div>
             </form>
-            {% if hata %}
-                <div class="alert alert-danger mt-3 mb-0">{{ hata }}</div>
-            {% endif %}
         </div>
     </div>
 
     {% if veriler %}
     <div class="card shadow-sm border-0">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 text-secondary">Analiz Sonuçları</h5>
-            <span class="badge bg-dark">{{ veriler|length }} Kalem İşlendi</span>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-bordered mb-0 align-middle">
-                <thead class="table-dark">
+        <div class="table-responsive" style="max-height: 800px;">
+            <table class="table table-sm table-hover table-bordered mb-0 align-middle">
+                <thead class="table-dark sticky-header">
                     <tr>
-                        <th style="width: 25%;">Yeni Hizmet Adı</th>
-                        <th class="text-end" style="width: 10%;">Yeni Fiyat</th>
-                        <th style="width: 25%;">Eski Hizmet Adı</th>
-                        <th class="text-end" style="width: 10%;">Eski Fiyat</th>
-                        <th class="text-end" style="width: 10%;">Fark</th>
-                        <th class="text-center" style="width: 10%;">Değişim %</th>
-                        <th class="text-center" style="width: 10%;">Durum</th>
+                        <th>Yeni Kod</th>
+                        <th>Yeni Hizmet Adı</th>
+                        <th class="text-end">Yeni Fiyat</th>
+                        <th>Eski Kod</th>
+                        <th>Eski Hizmet Adı</th>
+                        <th class="text-end">Eski Fiyat</th>
+                        <th class="text-end">Fark</th>
+                        <th class="text-center">Değişim</th>
+                        <th class="text-center">Durum</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for satir in veriler %}
-                    <tr class="
-                        {% if satir.Durum == 'Yeni Eklendi' %}bg-yeni
-                        {% elif satir.Durum == 'Listeden Çıkarıldı' %}bg-sil
-                        {% elif satir.Durum == 'Zamlandı' %}bg-zaml
-                        {% endif %}">
+                    <tr class="{% if satir.Durum == 'Yeni Eklendi' %}bg-yeni{% elif satir.Durum == 'Listeden Çıkarıldı' %}bg-sil{% elif satir.Durum == 'Zamlandı' %}bg-zaml{% endif %}">
                         
+                        <td class="font-monospace fw-bold text-primary">{{ satir.Yeni_Kod }}</td>
                         <td class="fw-semibold">{{ satir.Yeni_Hizmet }}</td>
-                        <td class="text-end font-monospace">
-                            {% if satir.Yeni_Fiyat != '-' %}{{ satir.Yeni_Fiyat }} TL{% else %}-{% endif %}
-                        </td>
+                        <td class="text-end font-monospace">{{ satir.Yeni_Fiyat }}{% if satir.Yeni_Fiyat != '-' %} TL{% endif %}</td>
                         
-                        <td class="text-muted">{{ satir.Eski_Hizmet }}</td>
-                        <td class="text-end font-monospace text-muted">
-                            {% if satir.Eski_Fiyat != '-' %}{{ satir.Eski_Fiyat }} TL{% else %}-{% endif %}
-                        </td>
+                        <td class="font-monospace text-muted">{{ satir.Eski_Kod }}</td>
+                        <td class="text-muted small">{{ satir.Eski_Hizmet }}</td>
+                        <td class="text-end font-monospace text-muted">{{ satir.Eski_Fiyat }}{% if satir.Eski_Fiyat != '-' %} TL{% endif %}</td>
                         
-                        <td class="text-end font-monospace fw-bold">
-                            {% if satir.Fark != '-' %}{{ satir.Fark }} TL{% else %}-{% endif %}
-                        </td>
+                        <td class="text-end font-monospace fw-bold">{{ satir.Fark }}{% if satir.Fark != '-' %} TL{% endif %}</td>
                         
                         <td class="text-center font-monospace">
                             {% if satir.Degisim_Yuzde != '-' %}
                                 <span class="{% if satir.Degisim_Yuzde > 0 %}text-up{% elif satir.Degisim_Yuzde < 0 %}text-down{% endif %}">
                                     %{{ satir.Degisim_Yuzde|floatformat:2 }}
                                 </span>
-                            {% else %}
-                                -
-                            {% endif %}
+                            {% else %}-{% endif %}
                         </td>
                         
                         <td class="text-center">
-                            <span class="badge 
-                                {% if satir.Durum == 'Yeni Eklendi' %}bg-primary
-                                {% elif satir.Durum == 'Listeden Çıkarıldı' %}bg-danger
-                                {% elif satir.Durum == 'Değişmedi' %}bg-secondary
-                                {% else %}bg-success{% endif %}">
+                            <span class="badge rounded-pill {% if satir.Durum == 'Yeni Eklendi' %}bg-primary{% elif satir.Durum == 'Listeden Çıkarıldı' %}bg-danger{% elif satir.Durum == 'Değişmedi' %}bg-secondary{% else %}bg-success{% endif %}">
                                 {{ satir.Durum }}
                             </span>
                         </td>

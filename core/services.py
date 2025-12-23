@@ -27,39 +27,36 @@ def tarifeleri_karsilastir(eski_dosya_path, yeni_dosya_path):
             df[kod_col] = df[kod_col].astype(str).replace('nan', '')
             return df[df[kod_col].str.contains('-', na=False)].copy()
 
-        df_eski_filtrelenmis = kalemleri_filtrele(df_eski)
-        df_yeni_filtrelenmis = kalemleri_filtrele(df_yeni)
+        df_eski_f = kalemleri_filtrele(df_eski)
+        df_yeni_f = kalemleri_filtrele(df_yeni)
 
         sonuclar = []
         eski_liste_kullanildi = set()
 
-        for idx_yeni, yeni_satir in df_yeni_filtrelenmis.iterrows():
+        for idx_yeni, yeni_satir in df_yeni_f.iterrows():
             yeni_kod = str(yeni_satir[kod_col]).strip()
             yeni_hizmet = str(yeni_satir[hizmet_col]).strip()
-            
             yeni_fiyat = pd.to_numeric(yeni_satir[yeni_fiyat_col], errors='coerce')
             if np.isnan(yeni_fiyat): yeni_fiyat = 0
 
             en_iyi_eslesme_idx = None
             en_yuksek_skor = 0
             
-            tam_kod_eslesme = df_eski_filtrelenmis[df_eski_filtrelenmis[kod_col].str.strip() == yeni_kod]
-            
-            if not tam_kod_eslesme.empty:
-                en_iyi_eslesme_idx = tam_kod_eslesme.index[0]
+            tam_kod = df_eski_f[df_eski_f[kod_col].str.strip() == yeni_kod]
+            if not tam_kod.empty:
+                en_iyi_eslesme_idx = tam_kod.index[0]
                 en_yuksek_skor = 1.0
             else:
-                for idx_eski, eski_satir in df_eski_filtrelenmis.iterrows():
+                for idx_eski, eski_satir in df_eski_f.iterrows():
                     skor = benzerlik_orani(yeni_hizmet, eski_satir[hizmet_col])
                     if skor > en_yuksek_skor:
                         en_yuksek_skor = skor
                         en_iyi_eslesme_idx = idx_eski
 
             if en_iyi_eslesme_idx is not None and en_yuksek_skor >= 0.7:
-                eski_satir = df_eski_filtrelenmis.loc[en_iyi_eslesme_idx]
+                eski_satir = df_eski_f.loc[en_iyi_eslesme_idx]
                 eski_fiyat = pd.to_numeric(eski_satir[eski_fiyat_col], errors='coerce')
                 if np.isnan(eski_fiyat): eski_fiyat = 0
-                
                 eski_liste_kullanildi.add(en_iyi_eslesme_idx)
                 
                 fark = yeni_fiyat - eski_fiyat
@@ -67,37 +64,24 @@ def tarifeleri_karsilastir(eski_dosya_path, yeni_dosya_path):
                 durum = "Zamlandı" if fark > 0 else ("İndirim" if fark < 0 else "Değişmedi")
 
                 sonuclar.append({
-                    'Yeni_Hizmet': f"[{yeni_kod}] {yeni_hizmet}",
-                    'Yeni_Fiyat': f"{yeni_fiyat:,.2f}",
-                    'Eski_Hizmet': f"[{eski_satir[kod_col]}] {eski_satir[hizmet_col]}",
-                    'Eski_Fiyat': f"{eski_fiyat:,.2f}",
-                    'Fark': f"{fark:,.2f}",
-                    'Degisim_Yuzde': degisim,
-                    'Durum': durum
+                    'Yeni_Kod': yeni_kod, 'Yeni_Hizmet': yeni_hizmet, 'Yeni_Fiyat': f"{yeni_fiyat:,.2f}",
+                    'Eski_Kod': str(eski_satir[kod_col]), 'Eski_Hizmet': str(eski_satir[hizmet_col]), 'Eski_Fiyat': f"{eski_fiyat:,.2f}",
+                    'Fark': f"{fark:,.2f}", 'Degisim_Yuzde': degisim, 'Durum': durum
                 })
             else:
                 sonuclar.append({
-                    'Yeni_Hizmet': f"[{yeni_kod}] {yeni_hizmet}",
-                    'Yeni_Fiyat': f"{yeni_fiyat:,.2f}",
-                    'Eski_Hizmet': '-',
-                    'Eski_Fiyat': '-',
-                    'Fark': '-',
-                    'Degisim_Yuzde': '-',
-                    'Durum': 'Yeni Eklendi'
+                    'Yeni_Kod': yeni_kod, 'Yeni_Hizmet': yeni_hizmet, 'Yeni_Fiyat': f"{yeni_fiyat:,.2f}",
+                    'Eski_Kod': '-', 'Eski_Hizmet': '-', 'Eski_Fiyat': '-',
+                    'Fark': '-', 'Degisim_Yuzde': '-', 'Durum': 'Yeni Eklendi'
                 })
 
-        for idx, eski_satir in df_eski_filtrelenmis.iterrows():
+        for idx, eski_satir in df_eski_f.iterrows():
             if idx not in eski_liste_kullanildi:
-                eski_fiyat = pd.to_numeric(eski_satir[eski_fiyat_col], errors='coerce')
-                if np.isnan(eski_fiyat): eski_fiyat = 0
+                f_eski = pd.to_numeric(eski_satir[eski_fiyat_col], errors='coerce')
                 sonuclar.append({
-                    'Yeni_Hizmet': '-',
-                    'Yeni_Fiyat': '-',
-                    'Eski_Hizmet': f"[{eski_satir[kod_col]}] {eski_satir[hizmet_col]}",
-                    'Eski_Fiyat': f"{eski_fiyat:,.2f}",
-                    'Fark': '-',
-                    'Degisim_Yuzde': '-',
-                    'Durum': 'Listeden Çıkarıldı'
+                    'Yeni_Kod': '-', 'Yeni_Hizmet': '-', 'Yeni_Fiyat': '-',
+                    'Eski_Kod': str(eski_satir[kod_col]), 'Eski_Hizmet': str(eski_satir[hizmet_col]), 'Eski_Fiyat': f"{f_eski:,.2f}",
+                    'Fark': '-', 'Degisim_Yuzde': '-', 'Durum': 'Listeden Çıkarıldı'
                 })
 
         return sonuclar, None
