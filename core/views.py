@@ -6,6 +6,10 @@ from .models import HizmetListesi, TarifeKarsilastirma
 import pandas as pd
 
 def anasayfa(request):
+    #ilk açılan sayfa - fiyat oluşturma sayfası
+    return render(request, 'core/fiyat_olusturma.html')
+
+def tarife_karsilastirma(request):
     veriler = None
     hata = None
     form = TarifeYuklemeForm()
@@ -79,4 +83,4 @@ def anasayfa(request):
                 except Exception as e:
                     hata = f"Veritabanına kaydederken hata oluştu: {str(e)}"
 
-    return render(request, 'core/anasayfa.html', {'form': form, 'veriler': veriler, 'hata': hata})
+    return render(request, 'core/tarife_karsilastirma.html', {'form': form, 'veriler': veriler, 'hata': hata})
