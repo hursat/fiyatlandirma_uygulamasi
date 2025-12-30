@@ -1,13 +1,82 @@
 from django.shortcuts import render, redirect
 from django.db import transaction
-from .forms import TarifeYuklemeForm
+from .forms import TarifeYuklemeForm, FiyatListesiYuklemeForm
 from .services import tarifeleri_karsilastir
 from .models import HizmetListesi, TarifeKarsilastirma
 import pandas as pd
+from decimal import Decimal
+
+def fiyat_duzelt(deger):
+    """Excel'den gelen veriyi sayıya çevirir."""
+    if pd.isna(deger) or str(deger).strip() in ['-', '']:
+        return 0.0
+    
+    if isinstance(deger, (int, float)):
+        return float(deger)
+
+    try:
+        s = str(deger).replace('TL', '').replace('tl', '').replace('₺', '').strip()
+        s = s.replace('.', '').replace(',', '.')
+        return float(s)
+    except:
+        return 0.0
 
 def anasayfa(request):
-    #ilk açılan sayfa - fiyat oluşturma sayfası
-    return render(request, 'core/fiyat_olusturma.html')
+    """Fiyat Oluşturma Sayfası"""
+    veriler = []
+    hata = None
+    form = FiyatListesiYuklemeForm()
+
+    if request.method == 'POST':
+        form = FiyatListesiYuklemeForm(request.POST, request.FILES)
+        if form.is_valid():
+            dosya = request.FILES['dosya']
+            try:
+                # 1. Dosyayı Oku
+                df = pd.read_excel(dosya, dtype=str)
+                
+                # 2. Sütun isimlerindeki sağ/sol boşlukları temizle (Örn: "KOD " -> "KOD")
+                df.columns = df.columns.str.strip()
+                
+                # Excel'den okunan sütun listesi
+                mevcut_sutunlar = df.columns.tolist()
+
+                # 3. DOĞRUDAN SÜTUN BELİRLEME
+                # Excel dosyasındaki başlıklar tam olarak bunlarsa çalışır:
+                hedef_kod = 'KOD'
+                hedef_hizmet = 'HİZMET KONUSU'
+                hedef_fiyat = '2024 Yılı Ücretlendirme'
+
+                # Bu sütunlar var mı kontrol et
+                if hedef_kod not in mevcut_sutunlar or hedef_hizmet not in mevcut_sutunlar or hedef_fiyat not in mevcut_sutunlar:
+                    hata = f"Beklenen sütunlar bulunamadı!\nAranan: {hedef_kod}, {hedef_hizmet}, {hedef_fiyat}\nDosyadakiler: {mevcut_sutunlar}"
+                else:
+                    # 4. Verileri Doğrudan Çek
+                    for index, row in df.iterrows():
+                        # Kod ve Hizmet Konusu boşsa atla
+                        if pd.isna(row[hedef_kod]) and pd.isna(row[hedef_hizmet]):
+                            continue
+
+                        ham_fiyat = row[hedef_fiyat]
+                        temiz_fiyat = fiyat_duzelt(ham_fiyat)
+
+                        veriler.append({
+                            'kod': row[hedef_kod],
+                            'hizmet': row[hedef_hizmet],
+                            'eski_fiyat': temiz_fiyat,
+                        })
+                    
+                    if not veriler:
+                        hata = "Veri okunamadı. Satırların dolu olduğundan emin olun."
+
+            except Exception as e:
+                hata = f"Kritik Hata: {str(e)}"
+
+    return render(request, 'core/fiyat_olusturma.html', {
+        'form': form, 
+        'veriler': veriler, 
+        'hata': hata
+    })
 
 def tarife_karsilastirma(request):
     veriler = None
