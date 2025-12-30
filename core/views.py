@@ -147,7 +147,7 @@ def tarife_karsilastirma(request):
                     
                     # Kayıt başarılıysa session'ı temizle
                     del request.session['gecici_veriler']
-                    return render(request, 'core/anasayfa.html', {'mesaj': 'Veriler başarıyla veritabanına kaydedildi!', 'form': form})
+                    return render(request, 'core/tarife_karsilastirma.html', {'mesaj': 'Veriler başarıyla veritabanına kaydedildi!', 'form': form})
                 
                 except Exception as e:
                     hata = f"Veritabanına kaydederken hata oluştu: {str(e)}"
