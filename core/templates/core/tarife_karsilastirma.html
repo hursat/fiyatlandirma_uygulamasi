@@ -61,32 +61,43 @@
                 </thead>
                 <tbody>
                     {% for satir in veriler %}
-                    <tr class="{% if satir.Durum == 'Yeni Eklendi' %}table-primary{% elif satir.Durum == 'Listeden Çıkarıldı' %}table-danger{% elif satir.Durum == 'Zamlandı' %}table-success{% endif %}" style="--bs-table-bg-opacity: .1;">
-                        
-                        <td class="font-monospace fw-bold text-primary">{{ satir.Yeni_Kod }}</td>
-                        <td class="fw-semibold">{{ satir.Yeni_Hizmet }}</td>
-                        <td class="text-end font-monospace">{{ satir.Yeni_Fiyat }}{% if satir.Yeni_Fiyat != '-' %} TL{% endif %}</td>
-                        
-                        <td class="font-monospace text-muted">{{ satir.Eski_Kod }}</td>
-                        <td class="text-muted small">{{ satir.Eski_Hizmet }}</td>
-                        <td class="text-end font-monospace text-muted">{{ satir.Eski_Fiyat }}{% if satir.Eski_Fiyat != '-' %} TL{% endif %}</td>
-                        
-                        <td class="text-end font-monospace fw-bold">{{ satir.Fark }}{% if satir.Fark != '-' %} TL{% endif %}</td>
-                        
-                        <td class="text-center font-monospace">
-                            {% if satir.Degisim_Yuzde != '-' %}
-                                <span class="{% if satir.Degisim_Yuzde > 0 %}text-success{% elif satir.Degisim_Yuzde < 0 %}text-danger{% endif %} fw-bold">
-                                    %{{ satir.Degisim_Yuzde|floatformat:2 }}
-                                </span>
-                            {% else %}-{% endif %}
-                        </td>
-                        
-                        <td class="text-center">
-                            <span class="badge rounded-pill {% if satir.Durum == 'Yeni Eklendi' %}bg-primary{% elif satir.Durum == 'Listeden Çıkarıldı' %}bg-danger{% elif satir.Durum == 'Değişmedi' %}bg-secondary{% else %}bg-success{% endif %}">
-                                {{ satir.Durum }}
-                            </span>
-                        </td>
-                    </tr>
+                        {% if satir.is_header %}
+                            <tr class="table-secondary border-bottom border-dark">
+                                <td class="fw-bold fs-5 text-dark bg-warning-subtle text-center border-end border-dark">
+                                    {{ satir.kod }}
+                                </td>
+                                <td colspan="8" class="fw-bold fs-5 text-dark bg-warning-subtle ps-3">
+                                    {{ satir.aciklama }}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr class="{% if satir.Durum == 'Yeni Eklendi' %}table-primary{% elif satir.Durum == 'Listeden Çıkarıldı' %}table-danger{% elif satir.Durum == 'Zamlandı' %}table-success{% endif %}" style="--bs-table-bg-opacity: .1;">
+                                
+                                <td class="font-monospace fw-bold text-primary">{{ satir.Yeni_Kod }}</td>
+                                <td class="fw-semibold">{{ satir.Yeni_Hizmet }}</td>
+                                <td class="text-end font-monospace">{{ satir.Yeni_Fiyat }}{% if satir.Yeni_Fiyat != '-' %} TL{% endif %}</td>
+                                
+                                <td class="font-monospace text-muted">{{ satir.Eski_Kod }}</td>
+                                <td class="text-muted small">{{ satir.Eski_Hizmet }}</td>
+                                <td class="text-end font-monospace text-muted">{{ satir.Eski_Fiyat }}{% if satir.Eski_Fiyat != '-' %} TL{% endif %}</td>
+                                
+                                <td class="text-end font-monospace fw-bold">{{ satir.Fark }}{% if satir.Fark != '-' %} TL{% endif %}</td>
+                                
+                                <td class="text-center font-monospace">
+                                    {% if satir.Degisim_Yuzde != '-' %}
+                                        <span class="{% if satir.Degisim_Yuzde > 0 %}text-success{% elif satir.Degisim_Yuzde < 0 %}text-danger{% endif %} fw-bold">
+                                            %{{ satir.Degisim_Yuzde|floatformat:2 }}
+                                        </span>
+                                    {% else %}-{% endif %}
+                                </td>
+                                
+                                <td class="text-center">
+                                    <span class="badge rounded-pill {% if satir.Durum == 'Yeni Eklendi' %}bg-primary{% elif satir.Durum == 'Listeden Çıkarıldı' %}bg-danger{% elif satir.Durum == 'Değişmedi' %}bg-secondary{% else %}bg-success{% endif %}">
+                                        {{ satir.Durum }}
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endif %}
                     {% endfor %}
                 </tbody>
             </table>

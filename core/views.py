@@ -6,6 +6,19 @@ from .models import HizmetListesi, TarifeKarsilastirma
 import pandas as pd
 from decimal import Decimal
 
+GRUP_TANIMLARI = {
+    'İHR': 'İhracat İşlemleri',
+    'İTH': 'İthalat İşlemleri',
+    'TR': 'Transit İşlemleri',
+    'ANT': 'Antrepo İşlemleri',
+    'DAN': 'Danışmanlık İşlemleri',
+    'ÖZ': 'Özellik Arz Eden İşlemler', # SB de buraya dahil olacak
+    'TRM': 'Tarım İşlemleri',
+    'TSE': 'TSE/Tareks İşlemleri',
+    'Uİ': 'Uzlaşma & İtiraz İşlemleri',
+    'ODİ': 'Okuyan Diğer İşlemler'
+}
+
 def fiyat_duzelt(deger):
     """Excel'den gelen veriyi sayıya çevirir."""
     if pd.isna(deger) or str(deger).strip() in ['-', '']:
@@ -84,21 +97,51 @@ def tarife_karsilastirma(request):
     form = TarifeYuklemeForm()
 
     if request.method == 'POST':
-        # DURUM 1: ANALİZ ET BUTONUNA BASILDIĞINDA
         if 'analiz_et' in request.POST:
             form = TarifeYuklemeForm(request.POST, request.FILES)
             if form.is_valid():
                 try:
                     tarife_obj = form.save()
-                    veriler, hata = tarifeleri_karsilastir(tarife_obj.eski_yil_dosyasi.path, tarife_obj.yeni_yil_dosyasi.path)
+                    ham_veriler, hata = tarifeleri_karsilastir(tarife_obj.eski_yil_dosyasi.path, tarife_obj.yeni_yil_dosyasi.path)
                     
-                    if veriler:
-                        # Verileri session'da sakla
-                        request.session['gecici_veriler'] = veriler
-                        request.session['analiz_yili'] = 2025 # Dinamikleştirilebilir
-                except Exception as e:
-                    hata = f"Dosya işlenirken hata oluştu: {str(e)}"
+                    if ham_veriler:
+                        # 1. Saf veriyi veritabanı kaydı için sakla
+                        request.session['gecici_veriler'] = ham_veriler
+                        request.session['analiz_yili'] = 2025
 
+                        # 2. Ekranda gösterim için BAŞLIKLI listeyi oluştur
+                        gosterim_listesi = []
+                        son_grup = None
+
+                        for satir in ham_veriler:
+                            # Kodu analiz et (Örn: İHR-1 -> İHR)
+                            yeni_kod = str(satir['Yeni_Kod']).strip()
+                            # Tire varsa öncesini al, yoksa tamamını al
+                            prefix = yeni_kod.split('-')[0] if '-' in yeni_kod else yeni_kod
+                            
+                            # KURAL: SB gelirse başlıkta ÖZ yazacak
+                            grup_kodu = 'ÖZ' if prefix in ['ÖZ', 'SB'] else prefix
+
+                            # Eğer grup değiştiyse araya Başlık Satırı ekle
+                            if grup_kodu != son_grup:
+                                aciklama = GRUP_TANIMLARI.get(grup_kodu, f'{grup_kodu} İşlemleri')
+                                gosterim_listesi.append({
+                                    'is_header': True, # Bu bir veri değil, başlık satırıdır
+                                    'kod': grup_kodu,
+                                    'aciklama': aciklama
+                                })
+                                son_grup = grup_kodu
+                            
+                            # Normal veri satırını ekle
+                            satir['is_header'] = False
+                            gosterim_listesi.append(satir)
+                        
+                        # Template'e gidecek veriyi güncelle
+                        veriler = gosterim_listesi
+
+                except Exception as e:
+                    hata = f"Analiz hatası: {str(e)}"
+                    
         # DURUM 2: KAYDET BUTONUNA BASILDIĞINDA
         elif 'kaydet' in request.POST:
             gecici_veriler = request.session.get('gecici_veriler')
