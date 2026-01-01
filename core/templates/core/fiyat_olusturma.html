@@ -3,23 +3,30 @@
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">Fiyat Oluşturma</h1>
+        <h1 class="h2">Fiyat Teklifi Oluşturma</h1>
     </div>
 
     {% if hata %}
         <div class="alert alert-danger">{{ hata }}</div>
     {% endif %}
 
-    <div class="card shadow-sm border-0 mb-4">
+    <div class="card shadow-sm border-0 mb-4 bg-light">
         <div class="card-body">
             <form method="post" enctype="multipart/form-data" class="row g-3 align-items-end">
                 {% csrf_token %}
-                <div class="col-md-10">
-                    {{ form.dosya.label_tag }}
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Hedef Yıl</label>
+                    {{ form.yil }}
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-bold">Eski Liste (Opsiyonel)</label>
                     {{ form.dosya }}
+                    <div class="form-text">Müşterinin eski listesini yüklerseniz, sistem otomatik zam oranı hesaplar.</div>
                 </div>
                 <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">Listeyi Yükle</button>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-gear-fill me-2"></i>Listeyi Hazırla
+                    </button>
                 </div>
             </form>
         </div>
@@ -27,35 +34,71 @@
 
     {% if veriler %}
     <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-secondary fw-bold">Fiyat Listesi Önizleme</h5>
+            <button class="btn btn-success" disabled title="Henüz aktif değil">
+                <i class="bi bi-file-earmark-excel me-2"></i>Excel İndir
+            </button>
+        </div>
+
         <div class="table-responsive">
-            <table class="table table-hover table-bordered align-middle mb-0">
+            <table class="table table-hover table-bordered align-middle mb-0" style="font-size: 0.9rem;">
                 <thead class="table-dark sticky-top">
                     <tr>
                         <th style="width: 10%">Kod</th>
-                        <th style="width: 40%">Hizmet</th>
-                        <th style="width: 15%" class="text-end">Eski Fiyat</th>
-                        <th style="width: 15%" class="text-center">% Değişim</th>
-                        <th style="width: 20%" class="text-end">Yeni Fiyat</th>
+                        <th style="width: 35%">Hizmet Adı</th>
+                        <th style="width: 12%" class="text-end">Müşteri Eski</th>
+                        <th style="width: 12%" class="text-end text-warning">Asgari (Ref)</th>
+                        <th style="width: 12%" class="text-center">Artış %</th>
+                        <th style="width: 14%" class="text-end">Yeni Teklif</th>
+                        <th style="width: 5%" class="text-center">Durum</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for satir in veriler %}
-                    <tr>
-                        <td class="fw-bold text-primary">{{ satir.kod }}</td>
-                        <td>{{ satir.hizmet }}</td>
-                        
-                        <td class="text-end" data-fiyat="{{ satir.eski_fiyat }}">
-                            {{ satir.eski_fiyat|floatformat:2 }} TL
-                        </td>
+                        {% if satir.is_header %}
+                            <tr class="table-secondary">
+                                <td class="fw-bold text-center bg-warning-subtle">{{ satir.kod }}</td>
+                                <td colspan="6" class="fw-bold bg-warning-subtle ps-3">{{ satir.aciklama }}</td>
+                            </tr>
+                        {% else %}
+                            <tr class="veri-satiri {% if satir.durum == 'Yeni Hizmet' %}table-info{% endif %}">
+                                <td class="fw-bold text-primary">{{ satir.kod }}</td>
+                                <td>{{ satir.hizmet }}</td>
+                                
+                                <td class="text-end text-muted" data-eski="{{ satir.musteri_eski_fiyat }}">
+                                    {% if satir.musteri_eski_fiyat > 0 %}
+                                        {{ satir.musteri_eski_fiyat|floatformat:2 }} TL
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
 
-                        <td>
-                            <input type="number" step="0.01" class="form-control form-control-sm text-center degisim-input" placeholder="0">
-                        </td>
+                                <td class="text-end text-secondary small">
+                                    {{ satir.asgari_ucret|floatformat:2 }} TL
+                                </td>
 
-                        <td class="text-end fw-bold text-success yeni-fiyat-hucre">
-                            {{ satir.eski_fiyat|floatformat:2 }} TL
-                        </td>
-                    </tr>
+                                <td class="p-1">
+                                    <input type="number" step="0.01" class="form-control form-control-sm text-center fw-bold text-primary yuzde-input" 
+                                           value="{{ satir.uygulanan_artis_yuzde|stringformat:'.2f' }}">
+                                </td>
+
+                                <td class="p-1">
+                                    <input type="number" step="0.01" class="form-control form-control-sm text-end fw-bold text-success fiyat-input" 
+                                           value="{{ satir.onerilen_fiyat|stringformat:'.2f' }}">
+                                </td>
+
+                                <td class="text-center">
+                                    {% if satir.durum == 'Yeni Hizmet' %}
+                                        <span class="badge bg-info text-dark">Yeni</span>
+                                    {% elif satir.durum == 'Eşleşen' %}
+                                        <span class="badge bg-success">Eşleşti</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Std</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -66,27 +109,45 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Tüm değişim inputlarını seç
-        const inputs = document.querySelectorAll('.degisim-input');
+        // Tüm veri satırlarını dinle
+        const rows = document.querySelectorAll('.veri-satiri');
 
-        inputs.forEach(input => {
-            input.addEventListener('input', function() {
-                // Hangi satırda olduğumuzu bul
-                const row = this.closest('tr');
-                
-                // Eski fiyatı al (data-fiyat özelliğinden ham sayıyı alıyoruz)
-                const eskiFiyat = parseFloat(row.querySelector('td[data-fiyat]').getAttribute('data-fiyat').replace(',', '.'));
-                
-                // Girilen yüzdeyi al
+        rows.forEach(row => {
+            const yuzdeInput = row.querySelector('.yuzde-input');
+            const fiyatInput = row.querySelector('.fiyat-input');
+            
+            // Eski fiyatı al (Eğer 0 ise, hesaplama bazını Asgari Ücret veya mevcut fiyat olarak alacağız)
+            // Lojik: Eğer müşteri eski fiyatı varsa baz odur. Yoksa baz yoktur, yüzdeyi fiyattan hesaplarız.
+            let bazFiyat = parseFloat(row.querySelector('td[data-eski]').getAttribute('data-eski').replace(',', '.'));
+            
+            // Eğer eski fiyat yoksa (Yeni Hizmetse), baz fiyat o anki hesaplanan fiyattır (Referans kaybolur)
+            // Bu yüzden "Sıfırdan Oluşturma" modunda % değişimi biraz anlamsız olabilir ama yine de formül kuralım.
+            const eskiFiyatVar = bazFiyat > 0;
+
+            // 1. Yüzde Değişince -> Fiyatı Güncelle
+            yuzdeInput.addEventListener('input', function() {
+                if (!eskiFiyatVar) return; // Eski fiyat yoksa yüzde neye göre artacak? (Bu kısıtlamayı konuşabiliriz)
+
                 let yuzde = parseFloat(this.value);
                 if (isNaN(yuzde)) yuzde = 0;
 
-                // Yeni fiyatı hesapla: Eski + (Eski * Yüzde / 100)
-                const yeniFiyat = eskiFiyat + (eskiFiyat * yuzde / 100);
+                let yeniFiyat = bazFiyat * (1 + (yuzde / 100));
+                fiyatInput.value = yeniFiyat.toFixed(2);
+            });
 
-                // Ekrana yazdır (Türkçe formatında: virgüllü)
-                row.querySelector('.yeni-fiyat-hucre').innerText = 
-                    yeniFiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
+            // 2. Fiyat Değişince -> Yüzdeyi Güncelle
+            fiyatInput.addEventListener('input', function() {
+                let yeniFiyat = parseFloat(this.value);
+                if (isNaN(yeniFiyat)) yeniFiyat = 0;
+
+                if (eskiFiyatVar) {
+                    // Eski fiyata göre yüzdesini bul: ((Yeni - Eski) / Eski) * 100
+                    let yeniYuzde = ((yeniFiyat - bazFiyat) / bazFiyat) * 100;
+                    yuzdeInput.value = yeniYuzde.toFixed(2);
+                } else {
+                    // Eski fiyat yoksa yüzdeyi 0 yap veya boş bırak
+                    yuzdeInput.value = 0;
+                }
             });
         });
     });

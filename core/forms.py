@@ -1,5 +1,6 @@
 from django import forms
 from .models import TarifeDosyasi
+from datetime import datetime
 
 class TarifeYuklemeForm(forms.ModelForm):
     class Meta:
@@ -10,5 +11,14 @@ class TarifeYuklemeForm(forms.ModelForm):
             'yeni_yil_dosyasi': forms.FileInput(attrs={'class': 'form-control', 'accept': '.xlsx, .xls'}),
         }
 
-class FiyatListesiYuklemeForm(forms.Form):
-    dosya = forms.FileField(label="Fiyat Listesi (Excel)", widget=forms.FileInput(attrs={'class': 'form-control'}))
+class FiyatListesiOlusturmaForm(forms.Form):
+    yil = forms.IntegerField(
+        label="Hedef Yıl (Örn: 2025)", 
+        initial=datetime.now().year,
+        widget=forms.NumberInput(attrs={'class': 'form-control'})
+    )
+    dosya = forms.FileField(
+        label="Eski Müşteri Listesi (Opsiyonel - Güncelleme için)", 
+        required=False, 
+        widget=forms.FileInput(attrs={'class': 'form-control'})
+    )

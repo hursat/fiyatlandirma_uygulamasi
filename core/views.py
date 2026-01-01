@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.db import transaction
-from .forms import TarifeYuklemeForm, FiyatListesiYuklemeForm
-from .services import tarifeleri_karsilastir
+from .forms import TarifeYuklemeForm, FiyatListesiOlusturmaForm
+from .services import tarifeleri_karsilastir, fiyat_listesi_hazirla
 from .models import HizmetListesi, TarifeKarsilastirma
 import pandas as pd
 from decimal import Decimal
@@ -12,7 +12,7 @@ GRUP_TANIMLARI = {
     'TR': 'Transit İşlemleri',
     'ANT': 'Antrepo İşlemleri',
     'DAN': 'Danışmanlık İşlemleri',
-    'ÖZ': 'Özellik Arz Eden İşlemler', # SB de buraya dahil olacak
+    'ÖZ': 'Özellik Arz Eden İşlemler',
     'TRM': 'Tarım İşlemleri',
     'TSE': 'TSE/Tareks İşlemleri',
     'Uİ': 'Uzlaşma & İtiraz İşlemleri',
@@ -35,55 +35,53 @@ def fiyat_duzelt(deger):
         return 0.0
 
 def anasayfa(request):
-    """Fiyat Oluşturma Sayfası"""
+    """Fiyat Oluşturma ve Teklif Hazırlama Sayfası"""
     veriler = []
     hata = None
-    form = FiyatListesiYuklemeForm()
+    form = FiyatListesiOlusturmaForm() # Artık yıl ve dosya alan form
 
     if request.method == 'POST':
-        form = FiyatListesiYuklemeForm(request.POST, request.FILES)
+        form = FiyatListesiOlusturmaForm(request.POST, request.FILES)
         if form.is_valid():
-            dosya = request.FILES['dosya']
+            hedef_yil = form.cleaned_data['yil']
+            dosya = request.FILES.get('dosya') # Dosya varsa al, yoksa None
+            
             try:
-                # 1. Dosyayı Oku
-                df = pd.read_excel(dosya, dtype=str)
+                # 1. Servisten ham verileri al
+                path = dosya if dosya else None
+                ham_liste = fiyat_listesi_hazirla(hedef_yil, path)
                 
-                # 2. Sütun isimlerindeki sağ/sol boşlukları temizle (Örn: "KOD " -> "KOD")
-                df.columns = df.columns.str.strip()
-                
-                # Excel'den okunan sütun listesi
-                mevcut_sutunlar = df.columns.tolist()
+                # 2. Başlık Satırlarını Ekle (Görsel Gruplama)
+                gosterim_listesi = []
+                son_grup = None
 
-                # 3. DOĞRUDAN SÜTUN BELİRLEME
-                # Excel dosyasındaki başlıklar tam olarak bunlarsa çalışır:
-                hedef_kod = 'KOD'
-                hedef_hizmet = 'HİZMET KONUSU'
-                hedef_fiyat = '2024 Yılı Ücretlendirme'
+                for satir in ham_liste:
+                    # Kodu analiz et
+                    kod = str(satir['kod']).strip()
+                    prefix = kod.split('-')[0] if '-' in kod else kod
+                    grup_kodu = 'ÖZ' if prefix in ['ÖZ', 'SB'] else prefix
 
-                # Bu sütunlar var mı kontrol et
-                if hedef_kod not in mevcut_sutunlar or hedef_hizmet not in mevcut_sutunlar or hedef_fiyat not in mevcut_sutunlar:
-                    hata = f"Beklenen sütunlar bulunamadı!\nAranan: {hedef_kod}, {hedef_hizmet}, {hedef_fiyat}\nDosyadakiler: {mevcut_sutunlar}"
-                else:
-                    # 4. Verileri Doğrudan Çek
-                    for index, row in df.iterrows():
-                        # Kod ve Hizmet Konusu boşsa atla
-                        if pd.isna(row[hedef_kod]) and pd.isna(row[hedef_hizmet]):
-                            continue
-
-                        ham_fiyat = row[hedef_fiyat]
-                        temiz_fiyat = fiyat_duzelt(ham_fiyat)
-
-                        veriler.append({
-                            'kod': row[hedef_kod],
-                            'hizmet': row[hedef_hizmet],
-                            'eski_fiyat': temiz_fiyat,
+                    # Grup değiştiyse Başlık Ekle
+                    if grup_kodu != son_grup:
+                        aciklama = GRUP_TANIMLARI.get(grup_kodu, f'{grup_kodu} İşlemleri')
+                        gosterim_listesi.append({
+                            'is_header': True,
+                            'kod': grup_kodu,
+                            'aciklama': aciklama
                         })
+                        son_grup = grup_kodu
                     
-                    if not veriler:
-                        hata = "Veri okunamadı. Satırların dolu olduğundan emin olun."
+                    # Normal veriyi ekle
+                    satir['is_header'] = False
+                    gosterim_listesi.append(satir)
+
+                veriler = gosterim_listesi
+
+                if not veriler:
+                    hata = f"{hedef_yil} yılına ait veritabanında hizmet bulunamadı. Lütfen önce Tarifeleri yükleyin."
 
             except Exception as e:
-                hata = f"Kritik Hata: {str(e)}"
+                hata = f"Hesaplama hatası: {str(e)}"
 
     return render(request, 'core/fiyat_olusturma.html', {
         'form': form, 
@@ -141,7 +139,7 @@ def tarife_karsilastirma(request):
 
                 except Exception as e:
                     hata = f"Analiz hatası: {str(e)}"
-                    
+
         # DURUM 2: KAYDET BUTONUNA BASILDIĞINDA
         elif 'kaydet' in request.POST:
             gecici_veriler = request.session.get('gecici_veriler')
