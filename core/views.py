@@ -1,22 +1,27 @@
 from django.shortcuts import render, redirect
 from django.db import transaction
+from django.http import HttpResponse
 from .forms import TarifeYuklemeForm, FiyatListesiOlusturmaForm
 from .services import tarifeleri_karsilastir, fiyat_listesi_hazirla
 from .models import HizmetListesi, TarifeKarsilastirma
 import pandas as pd
 from decimal import Decimal
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
+# GÜNCELLENEN GRUP TANIMLARI
 GRUP_TANIMLARI = {
-    'İHR': 'İhracat İşlemleri',
-    'İTH': 'İthalat İşlemleri',
-    'TR': 'Transit İşlemleri',
-    'ANT': 'Antrepo İşlemleri',
-    'DAN': 'Danışmanlık İşlemleri',
-    'ÖZ': 'Özellik Arz Eden İşlemler',
-    'TRM': 'Tarım İşlemleri',
-    'TSE': 'TSE/Tareks İşlemleri',
-    'Uİ': 'Uzlaşma & İtiraz İşlemleri',
-    'ODİ': 'Okuyan Diğer İşlemler'
+    'İHR': 'İHRACAT İŞLEMLERİ TÜM GÜMRÜKLER İÇİN (HER BEYANNAME)',
+    'İTH': 'İTHALAT İŞLEMLERİ (HER BEYANNAME)',
+    'TR': 'TRANSİT İŞLEMLERİ',
+    'ANT': 'GÜMRÜK ANTREPO İŞLEMLERİ',
+    'DAN': 'DANIŞMANLIK ÜCRETLERİ',
+    'ÖZ': 'ÖZELLİK ARZ EDEN İŞLEMLER',
+    'TRM': 'TARIM İŞLEMLERİ',
+    'TSE': 'TSE/TAREKS İŞLEMLERİ',
+    'Uİ': 'UZLAŞMA & İTİRAZ İŞLEMLERİ',
+    'ODİ': 'OKUYAN DİĞER İŞLEMLER'
 }
 
 def fiyat_duzelt(deger):
@@ -35,33 +40,174 @@ def fiyat_duzelt(deger):
         return 0.0
 
 def anasayfa(request):
-    """Fiyat Oluşturma ve Teklif Hazırlama Sayfası"""
+    """Fiyat Oluşturma ve Excel İndirme Sayfası"""
     veriler = []
     hata = None
-    form = FiyatListesiOlusturmaForm() # Artık yıl ve dosya alan form
+    form = FiyatListesiOlusturmaForm(request.POST or None, request.FILES or None)
 
     if request.method == 'POST':
-        form = FiyatListesiOlusturmaForm(request.POST, request.FILES)
-        if form.is_valid():
-            hedef_yil = form.cleaned_data['yil']
-            dosya = request.FILES.get('dosya') # Dosya varsa al, yoksa None
-            
+        # --- DURUM 1: EXCEL İNDİR BUTONUNA BASILDIYSA ---
+        if 'excel_indir' in request.POST:
             try:
-                # 1. Servisten ham verileri al
+                # 1. HTML Formundan Verileri Çek
+                kodlar = request.POST.getlist('liste_kod[]')
+                hizmetler = request.POST.getlist('liste_hizmet[]')
+                fiyatlar = request.POST.getlist('liste_fiyat[]')
+                durumlar = request.POST.getlist('liste_durum[]')
+                eski_fiyatlar = request.POST.getlist('liste_eski_fiyat[]')
+                yil = request.POST.get('hedef_yil_hidden', '2025')
+
+                # 2. Verileri Eşleşen ve Eşleşmeyen Diye Ayır
+                eslesen_rows = []
+                eslesmeyen_rows = []
+
+                for k, h, f, d, ef in zip(kodlar, hizmetler, fiyatlar, durumlar, eski_fiyatlar):
+                    # Boş satırları veya hatalı satırları atla
+                    if not k or k == '-' or k == 'nan':
+                        continue
+
+                    item = {
+                        'kod': str(k).strip(),
+                        'hizmet': h,
+                        'fiyat': f,
+                        'eski_fiyat': ef
+                    }
+
+                    if d == 'Eşleşemeyen':
+                        eslesmeyen_rows.append(item)
+                    else:
+                        eslesen_rows.append(item)
+
+                # 3. Excel Workbook Oluştur (OpenPyXL ile Manuel İşleme)
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "Fiyat Listesi"
+
+                # -- STİLLER --
+                # Başlık Stili (Siyah Zemin, Beyaz Yazı)
+                header_font = Font(bold=True, color="FFFFFF")
+                header_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+                
+                # Grup Başlığı Stili (Sarı Zemin)
+                group_font = Font(bold=True)
+                group_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid") # Warning-subtle benzeri
+
+                # Eşleşmeyen Başlık Stili (Kırmızımsı Zemin)
+                unmatched_header_fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid") # Table-danger benzeri
+                
+                # Kenarlık
+                thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+                # --- BÖLÜM 1: EŞLEŞENLER (NORMAL LİSTE) ---
+                
+                # Ana Tablo Başlıkları
+                headers = ['KOD', 'HİZMET KONUSU', f'{yil} YILI ÜCRETLENDİRME']
+                ws.append(headers)
+                
+                # Başlıkları Boya
+                for cell in ws[1]:
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = Alignment(horizontal='center')
+                    cell.border = thin_border
+
+                son_grup = None
+
+                for row_data in eslesen_rows:
+                    kod = row_data['kod']
+                    
+                    # Grup Analizi
+                    prefix = kod.split('-')[0] if '-' in kod else kod
+                    grup_kodu = 'ÖZ' if prefix in ['ÖZ', 'SB'] else prefix
+
+                    # Grup Başlığı Ekle
+                    if grup_kodu != son_grup:
+                        aciklama = GRUP_TANIMLARI.get(grup_kodu, f'{grup_kodu} İşlemleri')
+                        
+                        # Yeni Satır Ekle
+                        ws.append([grup_kodu, aciklama, ''])
+                        
+                        # Son eklenen satırı boya (Sarı)
+                        current_row = ws.max_row
+                        for col in range(1, 4):
+                            cell = ws.cell(row=current_row, column=col)
+                            cell.fill = group_fill
+                            cell.font = group_font
+                            cell.border = thin_border
+                        
+                        son_grup = grup_kodu
+
+                    # Veri Satırı Ekle
+                    ws.append([row_data['kod'], row_data['hizmet'], row_data['fiyat']])
+                    
+                    # Kenarlık Ekle
+                    current_row = ws.max_row
+                    for col in range(1, 4):
+                         ws.cell(row=current_row, column=col).border = thin_border
+
+
+                # --- BÖLÜM 2: EŞLEŞEMEYENLER (ALT KISIM) ---
+                if eslesmeyen_rows:
+                    ws.append([]) # Boşluk
+                    ws.append([]) # Boşluk
+
+                    # Eşleşmeyenler Tablo Başlığı
+                    unmatched_headers = ['KOD', 'HİZMET KONUSU', 'ESKİ ÜCRETLENDİRME']
+                    ws.append(unmatched_headers)
+
+                    # Başlığı Boya (Kırmızımsı)
+                    current_row = ws.max_row
+                    for col in range(1, 4):
+                        cell = ws.cell(row=current_row, column=col)
+                        cell.fill = unmatched_header_fill
+                        cell.font = Font(bold=True)
+                        cell.border = thin_border
+                        cell.alignment = Alignment(horizontal='center')
+
+                    # Verileri Ekle
+                    for row_data in eslesmeyen_rows:
+                        # Eski fiyatı basıyoruz
+                        ws.append([row_data['kod'], row_data['hizmet'], row_data['eski_fiyat']])
+                        
+                        # Kenarlık Ekle
+                        current_row = ws.max_row
+                        for col in range(1, 4):
+                             ws.cell(row=current_row, column=col).border = thin_border
+
+                # 4. Sütun Genişliklerini Ayarla
+                ws.column_dimensions['A'].width = 15
+                ws.column_dimensions['B'].width = 70
+                ws.column_dimensions['C'].width = 25
+
+                # 5. Çıktıyı Hazırla
+                output = io.BytesIO()
+                wb.save(output)
+                output.seek(0)
+                
+                response = HttpResponse(output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                response['Content-Disposition'] = f'attachment; filename=Fiyat_Listesi_{yil}.xlsx'
+                return response
+
+            except Exception as e:
+                hata = f"Excel oluşturulurken hata: {str(e)}"
+
+        # --- DURUM 2: HESAPLA BUTONUNA BASILDIYSA (AYNI KALIYOR) ---
+        elif form.is_valid():
+            hedef_yil = form.cleaned_data['yil']
+            dosya = request.FILES.get('dosya')
+            try:
                 path = dosya if dosya else None
                 ham_liste = fiyat_listesi_hazirla(hedef_yil, path)
-                
-                # 2. Başlık Satırlarını Ekle (Görsel Gruplama)
                 gosterim_listesi = []
                 son_grup = None
 
                 for satir in ham_liste:
-                    # Kodu analiz et
                     kod = str(satir['kod']).strip()
+                    if not kod or kod == '-': continue # Hatalı satırları filtrele
+
                     prefix = kod.split('-')[0] if '-' in kod else kod
                     grup_kodu = 'ÖZ' if prefix in ['ÖZ', 'SB'] else prefix
 
-                    # Grup değiştiyse Başlık Ekle
                     if grup_kodu != son_grup:
                         aciklama = GRUP_TANIMLARI.get(grup_kodu, f'{grup_kodu} İşlemleri')
                         gosterim_listesi.append({
@@ -71,14 +217,12 @@ def anasayfa(request):
                         })
                         son_grup = grup_kodu
                     
-                    # Normal veriyi ekle
                     satir['is_header'] = False
                     gosterim_listesi.append(satir)
 
                 veriler = gosterim_listesi
-
                 if not veriler:
-                    hata = f"{hedef_yil} yılına ait veritabanında hizmet bulunamadı. Lütfen önce Tarifeleri yükleyin."
+                    hata = f"{hedef_yil} verisi bulunamadı."
 
             except Exception as e:
                 hata = f"Hesaplama hatası: {str(e)}"
@@ -103,44 +247,34 @@ def tarife_karsilastirma(request):
                     ham_veriler, hata = tarifeleri_karsilastir(tarife_obj.eski_yil_dosyasi.path, tarife_obj.yeni_yil_dosyasi.path)
                     
                     if ham_veriler:
-                        # 1. Saf veriyi veritabanı kaydı için sakla
                         request.session['gecici_veriler'] = ham_veriler
                         request.session['analiz_yili'] = 2025
 
-                        # 2. Ekranda gösterim için BAŞLIKLI listeyi oluştur
                         gosterim_listesi = []
                         son_grup = None
 
                         for satir in ham_veriler:
-                            # Kodu analiz et (Örn: İHR-1 -> İHR)
                             yeni_kod = str(satir['Yeni_Kod']).strip()
-                            # Tire varsa öncesini al, yoksa tamamını al
                             prefix = yeni_kod.split('-')[0] if '-' in yeni_kod else yeni_kod
-                            
-                            # KURAL: SB gelirse başlıkta ÖZ yazacak
                             grup_kodu = 'ÖZ' if prefix in ['ÖZ', 'SB'] else prefix
 
-                            # Eğer grup değiştiyse araya Başlık Satırı ekle
                             if grup_kodu != son_grup:
                                 aciklama = GRUP_TANIMLARI.get(grup_kodu, f'{grup_kodu} İşlemleri')
                                 gosterim_listesi.append({
-                                    'is_header': True, # Bu bir veri değil, başlık satırıdır
+                                    'is_header': True,
                                     'kod': grup_kodu,
                                     'aciklama': aciklama
                                 })
                                 son_grup = grup_kodu
                             
-                            # Normal veri satırını ekle
                             satir['is_header'] = False
                             gosterim_listesi.append(satir)
                         
-                        # Template'e gidecek veriyi güncelle
                         veriler = gosterim_listesi
 
                 except Exception as e:
                     hata = f"Analiz hatası: {str(e)}"
 
-        # DURUM 2: KAYDET BUTONUNA BASILDIĞINDA
         elif 'kaydet' in request.POST:
             gecici_veriler = request.session.get('gecici_veriler')
             analiz_yili = request.session.get('analiz_yili', 2025)
@@ -149,8 +283,6 @@ def tarife_karsilastirma(request):
                 try:
                     with transaction.atomic():
                         for satir in gecici_veriler:
-                            # 1. Yeni Hizmeti Kaydet/Al
-                            # Senin istediğin replace mantığı korundu
                             yeni_obj, _ = HizmetListesi.objects.get_or_create(
                                 yil=analiz_yili,
                                 hizmet_kodu=satir['Yeni_Kod'],
@@ -160,7 +292,6 @@ def tarife_karsilastirma(request):
                                 }
                             )
 
-                            # 2. Eski Hizmeti Kaydet/Al
                             eski_obj = None
                             if satir['Eski_Kod'] != '-':
                                 eski_obj, _ = HizmetListesi.objects.get_or_create(
@@ -172,9 +303,6 @@ def tarife_karsilastirma(request):
                                     }
                                 )
 
-                            # 3. Karşılaştırma Tablosuna Yaz (TEKRAR KONTROLÜ)
-                            # ForeignKey olsa bile, kod içinde kontrol ediyoruz:
-                            # "Bu yeni hizmet (yeni_obj) için daha önce bir kayıt var mı?"
                             kayit_var_mi = TarifeKarsilastirma.objects.filter(yeni_hizmet=yeni_obj).exists()
 
                             if not kayit_var_mi:
@@ -186,7 +314,6 @@ def tarife_karsilastirma(request):
                                     durum=satir['Durum']
                                 )
                     
-                    # Kayıt başarılıysa session'ı temizle
                     del request.session['gecici_veriler']
                     return render(request, 'core/tarife_karsilastirma.html', {'mesaj': 'Veriler başarıyla veritabanına kaydedildi!', 'form': form})
                 
