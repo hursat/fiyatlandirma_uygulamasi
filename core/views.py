@@ -92,7 +92,7 @@ def anasayfa(request):
                 
                 # Sütun Genişlikleri
                 ws.column_dimensions['A'].width = 15
-                ws.column_dimensions['B'].width = 75 # Hizmet adı alanı genişletildi
+                ws.column_dimensions['B'].width = 75
                 ws.column_dimensions['C'].width = 25
 
                 # --- BÖLÜM 1: EŞLEŞENLER (NORMAL LİSTE) ---
