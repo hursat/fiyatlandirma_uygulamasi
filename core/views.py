@@ -60,7 +60,7 @@ def anasayfa(request):
                 # 2. Verileri Eşleşen ve Eşleşmeyen Diye Ayır
                 eslesen_rows = []
                 eslesmeyen_rows = []
-
+ 
                 for k, h, f, d, ef in zip(kodlar, hizmetler, fiyatlar, durumlar, eski_fiyatlar):
                     if not k or k == '-' or k == 'nan':
                         continue
@@ -96,6 +96,9 @@ def anasayfa(request):
                 ws.column_dimensions['C'].width = 25
 
                 # --- BÖLÜM 1: EŞLEŞENLER (NORMAL LİSTE) ---
+                ws.append([]) # Firma Logo Satırı
+                ws.append([]) # Tarih Satırı
+                ws.append([]) # Müşteri İsmi Satırı
                 headers = ['KOD', 'HİZMET KONUSU', f'{yil} YILI ÜCRETLENDİRME']
                 ws.append(headers)
                 
