@@ -11,7 +11,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from datetime import datetime
 
-# GÜNCELLENEN GRUP TANIMLARI
+# GRUP TANIMLARI
 GRUP_TANIMLARI = {
     'İHR': 'İHRACAT İŞLEMLERİ TÜM GÜMRÜKLER İÇİN (HER BEYANNAME)',
     'İTH': 'İTHALAT İŞLEMLERİ (HER BEYANNAME)',
@@ -58,6 +58,9 @@ def anasayfa(request):
                 durumlar = request.POST.getlist('liste_durum[]')
                 eski_fiyatlar = request.POST.getlist('liste_eski_fiyat[]')
                 yil = request.POST.get('hedef_yil_hidden', str(su_anki_yil))
+                
+                # Yeni: Müşteri İsmini Al (Formdan gelen)
+                musteri_ismi = request.POST.get('musteri_ismi', '')
 
                 # 2. Verileri Ayır
                 eslesen_rows = []
@@ -87,14 +90,14 @@ def anasayfa(request):
                 ws.column_dimensions['B'].width = 62
                 ws.column_dimensions['C'].width = 17
 
-                # --- ÜST KISIM DÜZENLEMELERİ (LOGO, TARİH, MÜŞTERİ) ---
+                # --- ÜST KISIM DÜZENLEMELERİ ---
                 
-                # 1. SATIR: Firma Logo/Başlık Alanı (120px)
+                # 1. SATIR: Firma Logo/Başlık Alanı
                 ws.append([]) 
                 ws.merge_cells('A1:C1')
-                ws.row_dimensions[1].height = 90 # OpenPyXL'de point cinsindendir (120px ≈ 90pt)
+                ws.row_dimensions[1].height = 90 
 
-                # 2. SATIR: Tarih Alanı (Sağa Dayalı)
+                # 2. SATIR: Tarih Alanı
                 ws.append([])
                 ws.merge_cells('A2:C2')
                 tarih_str = datetime.now().strftime('%d.%m.%Y')
@@ -102,20 +105,28 @@ def anasayfa(request):
                 tarih_hucre.value = f"Tarih: {tarih_str}"
                 tarih_hucre.alignment = Alignment(horizontal='right', vertical='center')
                 tarih_hucre.font = Font(bold=True)
-                # Standart yükseklik olduğu için row_dimensions ayarına gerek yok
 
-                # 3. SATIR: Müşteri İsmi Alanı (115px)
+                # 3. SATIR: Müşteri İsmi ve Tarife Başlığı (GÜNCELLENEN KISIM)
                 ws.append([])
                 ws.merge_cells('A3:C3')
-                ws.row_dimensions[3].height = 86.25 # (115px ≈ 86.25pt)
+                
+                musteri_satiri = ws['A3']
+                # Eğer müşteri ismi girildiyse onu yaz, altına standart metni ekle
+                if musteri_ismi:
+                    icerik = f"{musteri_ismi}\nGümrük Müşavirliği Ücret Tarifesi - {yil}"
+                else:
+                    icerik = f"Gümrük Müşavirliği Ücret Tarifesi - {yil}"
+
+                musteri_satiri.value = icerik
+                musteri_satiri.font = Font(bold=True, size=20) # 20 Punto
+                musteri_satiri.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                ws.row_dimensions[3].height = 86.25 
 
                 # --- BÖLÜM 1: EŞLEŞENLER TABLOSU ---
                 
-                # Başlık Satırı (4. Satır)
                 headers = ['KOD', 'HİZMET KONUSU', f'{yil} YILI ÜCRETLENDİRME']
                 ws.append(headers)
                 
-                # Başlıkları Boya (ws[4] çünkü 4. satırdayız)
                 for cell in ws[4]:
                     cell.fill = header_fill
                     cell.font = header_font
@@ -196,7 +207,6 @@ def anasayfa(request):
                              else:
                                  cell.alignment = Alignment(vertical='center')
 
-                # 5. Çıktıyı Hazırla
                 output = io.BytesIO()
                 wb.save(output)
                 output.seek(0)

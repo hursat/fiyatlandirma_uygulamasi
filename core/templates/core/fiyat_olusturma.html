@@ -37,9 +37,14 @@
         <div class="card shadow-sm border-0">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 text-secondary fw-bold">Hesaplanan Liste</h5>
-                <button type="submit" name="excel_indir" class="btn btn-success fw-bold">
-                    <i class="bi bi-file-earmark-excel"></i> Excel Olarak İndir
-                </button>
+                
+                <div class="d-flex gap-2">
+                    <input type="text" name="musteri_ismi" class="form-control" placeholder="Müşteri Unvanı Giriniz..." style="min-width: 300px;">
+                    
+                    <button type="submit" name="excel_indir" class="btn btn-success fw-bold text-nowrap">
+                        <i class="bi bi-file-earmark-excel"></i> Excel Olarak İndir
+                    </button>
+                </div>
             </div>
             
             <div class="table-responsive">
