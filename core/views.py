@@ -59,7 +59,6 @@ def anasayfa(request):
                 eski_fiyatlar = request.POST.getlist('liste_eski_fiyat[]')
                 yil = request.POST.get('hedef_yil_hidden', str(su_anki_yil))
                 
-                # Yeni: Müşteri İsmini Al (Formdan gelen)
                 musteri_ismi = request.POST.get('musteri_ismi', '')
 
                 # 2. Verileri Ayır
@@ -74,6 +73,8 @@ def anasayfa(request):
 
                 # 3. Excel Workbook Oluştur
                 wb = Workbook()
+                
+                # --- SAYFA 1: FİYAT LİSTESİ ---
                 ws = wb.active
                 ws.title = "Fiyat Listesi"
 
@@ -84,20 +85,21 @@ def anasayfa(request):
                 group_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
                 unmatched_header_fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
                 thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+                no_border = Border() 
                 
+                # SARI AYRAÇ RENGİ (GÜNCEL: PARLAK SARI)
+                yellow_separator_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+
                 # Sütun Genişlikleri
                 ws.column_dimensions['A'].width = 10
                 ws.column_dimensions['B'].width = 62
                 ws.column_dimensions['C'].width = 17
 
-                # --- ÜST KISIM DÜZENLEMELERİ ---
-                
-                # 1. SATIR: Firma Logo/Başlık Alanı
+                # --- ÜST KISIM (HEADER) ---
                 ws.append([]) 
                 ws.merge_cells('A1:C1')
                 ws.row_dimensions[1].height = 90 
 
-                # 2. SATIR: Tarih Alanı
                 ws.append([])
                 ws.merge_cells('A2:C2')
                 tarih_str = datetime.now().strftime('%d.%m.%Y')
@@ -106,24 +108,19 @@ def anasayfa(request):
                 tarih_hucre.alignment = Alignment(horizontal='right', vertical='center')
                 tarih_hucre.font = Font(bold=True)
 
-                # 3. SATIR: Müşteri İsmi ve Tarife Başlığı (GÜNCELLENEN KISIM)
                 ws.append([])
                 ws.merge_cells('A3:C3')
-                
                 musteri_satiri = ws['A3']
-                # Eğer müşteri ismi girildiyse onu yaz, altına standart metni ekle
                 if musteri_ismi:
                     icerik = f"{musteri_ismi}\nGümrük Müşavirliği Ücret Tarifesi - {yil}"
                 else:
                     icerik = f"Gümrük Müşavirliği Ücret Tarifesi - {yil}"
-
                 musteri_satiri.value = icerik
-                musteri_satiri.font = Font(bold=True, size=20) # 20 Punto
+                musteri_satiri.font = Font(bold=True, size=20)
                 musteri_satiri.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
                 ws.row_dimensions[3].height = 86.25 
 
                 # --- BÖLÜM 1: EŞLEŞENLER TABLOSU ---
-                
                 headers = ['KOD', 'HİZMET KONUSU', f'{yil} YILI ÜCRETLENDİRME']
                 ws.append(headers)
                 
@@ -152,7 +149,6 @@ def anasayfa(request):
                             cell.alignment = Alignment(vertical='center', wrap_text=True)
                         son_grup = grup_kodu
 
-                    # SIFIR KONTROLÜ
                     fiyat_val = row_data['fiyat']
                     try:
                         if float(str(fiyat_val).replace(',', '')) == 0:
@@ -172,21 +168,77 @@ def anasayfa(request):
                          else:
                              cell.alignment = Alignment(vertical='center')
 
-                # --- BÖLÜM 2: EŞLEŞEMEYENLER ---
-                if eslesmeyen_rows:
-                    ws.append([]) 
-                    ws.append([]) 
-                    unmatched_headers = ['KOD', 'HİZMET KONUSU', 'ESKİ ÜCRETLENDİRME']
-                    ws.append(unmatched_headers)
+                # --- DİPNOTLAR ---
+                dipnotlar = [
+                    "Fiyatlarımıza KDV dahil değildir.",
+                    "Firma adına yapılacak resmi masraflar (Ordino, Ardiye, Navlun Ödemesi, KKDF, KDV, Gümrük Vergisi, İtkib Nisbi Aidat, vs. ücretler) peşin tahsil edilecektir.",
+                    "Şubelerimizin olmadığı yerlerde yapılan gümrük işlemleri için ücret tarifesinin 50% fazlası uygulanır. (Yol, konaklama, yemek masrafları hariç)",
+                    "Verilen tarife resmi kurumların çalışma saatleri içerisinde verilen hizmetler için belirlenmiştir. Mesaili işlemlerde %40 ek hizmet bedeli faturalandırılacaktır.",
+                    f"İşbu teklif 31.12.{yil} tarihine kadar geçerlidir."
+                ]
 
-                    current_row = ws.max_row
+                for not_maddesi in dipnotlar:
+                    ws.append([f"- {not_maddesi}"])
+                    curr = ws.max_row
+                    ws.merge_cells(f'A{curr}:C{curr}')
+                    ws.row_dimensions[curr].height = 27
+                    merged_cell = ws.cell(row=curr, column=1)
+                    merged_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+                    merged_cell.font = Font(size=10, bold=True)
+                    merged_cell.border = no_border
+
+                # --- SARI AYRAÇ SATIRI (GÜNCEL: BOŞ SATIR + SARI DOLGU) ---
+                # max_row + 1 diyerek bir alt satıra geçiyoruz
+                sep_row = ws.max_row + 1
+                # Bu satırı doldurmak için append ile boş satır atalım ki hücreler oluşsun
+                ws.append([]) 
+                
+                ws.merge_cells(f'A{sep_row}:C{sep_row}')
+                for col in range(1, 4):
+                    cell = ws.cell(row=sep_row, column=col)
+                    cell.fill = yellow_separator_fill # FFFF00
+                    cell.border = no_border # Çizgisiz
+
+                # --- İLETİŞİM BİLGİLERİ ---
+                adres_bilgisi = "Adres: OKUYAN GÜMRÜK MÜŞAVİRLİĞİ LİMİTED ŞİRKETİ YENİBOSNA MERKEZ MAHALLESİ 29 EKİM CADDE NO: 11/C ARSLAN PLAZA BAHÇELİEVLER/İST.\nEmail: info@okuyan.com.tr"
+                
+                ws.append(['', adres_bilgisi, ''])
+                contact_row = ws.max_row
+                
+                ws.merge_cells(start_row=contact_row, start_column=2, end_row=contact_row, end_column=3)
+                ws.row_dimensions[contact_row].height = 40 
+                
+                ws.cell(row=contact_row, column=1).border = no_border
+                contact_cell = ws.cell(row=contact_row, column=2)
+                contact_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                contact_cell.font = Font(bold=True, size=9)
+                ws.cell(row=contact_row, column=2).border = no_border
+                ws.cell(row=contact_row, column=3).border = no_border
+
+
+                # --- SAYFA 2: EŞLEŞEMEYEN HİZMETLER ---
+                if eslesmeyen_rows:
+                    # Yeni sayfa oluştur
+                    ws2 = wb.create_sheet("Eşleşmeyen Hizmetler")
+                    
+                    # Sütun Genişlikleri (Aynı)
+                    ws2.column_dimensions['A'].width = 10
+                    ws2.column_dimensions['B'].width = 62
+                    ws2.column_dimensions['C'].width = 17
+
+                    # Başlık
+                    unmatched_headers = ['KOD', 'HİZMET KONUSU', 'ESKİ ÜCRETLENDİRME']
+                    ws2.append(unmatched_headers)
+
+                    # Başlık Stili
                     for col in range(1, 4):
-                        cell = ws.cell(row=current_row, column=col)
-                        cell.fill = unmatched_header_fill
+                        cell = ws2.cell(row=1, column=col)
+                        cell.fill = unmatched_header_fill # Kırmızımsı
                         cell.font = Font(bold=True)
                         cell.border = thin_border
                         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
+                    # Veriler
                     for row_data in eslesmeyen_rows:
                         eski_fiyat_val = row_data['eski_fiyat']
                         try:
@@ -195,10 +247,10 @@ def anasayfa(request):
                         except:
                             pass
 
-                        ws.append([row_data['kod'], row_data['hizmet'], eski_fiyat_val])
-                        current_row = ws.max_row
+                        ws2.append([row_data['kod'], row_data['hizmet'], eski_fiyat_val])
+                        current_row = ws2.max_row
                         for col in range(1, 4):
-                             cell = ws.cell(row=current_row, column=col)
+                             cell = ws2.cell(row=current_row, column=col)
                              cell.border = thin_border
                              if col == 2:
                                  cell.alignment = Alignment(wrap_text=True, vertical='center')
