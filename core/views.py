@@ -9,6 +9,7 @@ from decimal import Decimal
 import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from datetime import datetime
 
 # GÜNCELLENEN GRUP TANIMLARI
 GRUP_TANIMLARI = {
@@ -28,10 +29,8 @@ def fiyat_duzelt(deger):
     """Excel'den gelen veriyi sayıya çevirir."""
     if pd.isna(deger) or str(deger).strip() in ['-', '']:
         return 0.0
-    
     if isinstance(deger, (int, float)):
         return float(deger)
-
     try:
         s = str(deger).replace('TL', '').replace('tl', '').replace('₺', '').strip()
         s = s.replace('.', '').replace(',', '.')
@@ -45,6 +44,9 @@ def anasayfa(request):
     hata = None
     form = FiyatListesiOlusturmaForm(request.POST or None, request.FILES or None)
 
+    # Dinamik yıl hesabı
+    su_anki_yil = datetime.now().year
+
     if request.method == 'POST':
         # --- DURUM 1: EXCEL İNDİR BUTONUNA BASILDIYSA ---
         if 'excel_indir' in request.POST:
@@ -55,27 +57,17 @@ def anasayfa(request):
                 fiyatlar = request.POST.getlist('liste_fiyat[]')
                 durumlar = request.POST.getlist('liste_durum[]')
                 eski_fiyatlar = request.POST.getlist('liste_eski_fiyat[]')
-                yil = request.POST.get('hedef_yil_hidden', '2025')
+                yil = request.POST.get('hedef_yil_hidden', str(su_anki_yil))
 
-                # 2. Verileri Eşleşen ve Eşleşmeyen Diye Ayır
+                # 2. Verileri Ayır
                 eslesen_rows = []
                 eslesmeyen_rows = []
- 
+
                 for k, h, f, d, ef in zip(kodlar, hizmetler, fiyatlar, durumlar, eski_fiyatlar):
-                    if not k or k == '-' or k == 'nan':
-                        continue
-
-                    item = {
-                        'kod': str(k).strip(),
-                        'hizmet': h,
-                        'fiyat': f,
-                        'eski_fiyat': ef
-                    }
-
-                    if d == 'Eşleşemeyen':
-                        eslesmeyen_rows.append(item)
-                    else:
-                        eslesen_rows.append(item)
+                    if not k or k == '-' or k == 'nan': continue
+                    item = {'kod': str(k).strip(), 'hizmet': h, 'fiyat': f, 'eski_fiyat': ef}
+                    if d == 'Eşleşemeyen': eslesmeyen_rows.append(item)
+                    else: eslesen_rows.append(item)
 
                 # 3. Excel Workbook Oluştur
                 wb = Workbook()
@@ -91,18 +83,40 @@ def anasayfa(request):
                 thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
                 
                 # Sütun Genişlikleri
-                ws.column_dimensions['A'].width = 15
-                ws.column_dimensions['B'].width = 75
-                ws.column_dimensions['C'].width = 25
+                ws.column_dimensions['A'].width = 10
+                ws.column_dimensions['B'].width = 62
+                ws.column_dimensions['C'].width = 17
 
-                # --- BÖLÜM 1: EŞLEŞENLER (NORMAL LİSTE) ---
-                ws.append([]) # Firma Logo Satırı
-                ws.append([]) # Tarih Satırı
-                ws.append([]) # Müşteri İsmi Satırı
+                # --- ÜST KISIM DÜZENLEMELERİ (LOGO, TARİH, MÜŞTERİ) ---
+                
+                # 1. SATIR: Firma Logo/Başlık Alanı (120px)
+                ws.append([]) 
+                ws.merge_cells('A1:C1')
+                ws.row_dimensions[1].height = 90 # OpenPyXL'de point cinsindendir (120px ≈ 90pt)
+
+                # 2. SATIR: Tarih Alanı (Sağa Dayalı)
+                ws.append([])
+                ws.merge_cells('A2:C2')
+                tarih_str = datetime.now().strftime('%d.%m.%Y')
+                tarih_hucre = ws['A2']
+                tarih_hucre.value = f"Tarih: {tarih_str}"
+                tarih_hucre.alignment = Alignment(horizontal='right', vertical='center')
+                tarih_hucre.font = Font(bold=True)
+                # Standart yükseklik olduğu için row_dimensions ayarına gerek yok
+
+                # 3. SATIR: Müşteri İsmi Alanı (115px)
+                ws.append([])
+                ws.merge_cells('A3:C3')
+                ws.row_dimensions[3].height = 86.25 # (115px ≈ 86.25pt)
+
+                # --- BÖLÜM 1: EŞLEŞENLER TABLOSU ---
+                
+                # Başlık Satırı (4. Satır)
                 headers = ['KOD', 'HİZMET KONUSU', f'{yil} YILI ÜCRETLENDİRME']
                 ws.append(headers)
                 
-                for cell in ws[1]:
+                # Başlıkları Boya (ws[4] çünkü 4. satırdayız)
+                for cell in ws[4]:
                     cell.fill = header_fill
                     cell.font = header_font
                     cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
@@ -127,7 +141,7 @@ def anasayfa(request):
                             cell.alignment = Alignment(vertical='center', wrap_text=True)
                         son_grup = grup_kodu
 
-                    # SIFIR KONTROLÜ: Fiyat 0 ise boş bırak
+                    # SIFIR KONTROLÜ
                     fiyat_val = row_data['fiyat']
                     try:
                         if float(str(fiyat_val).replace(',', '')) == 0:
@@ -135,22 +149,19 @@ def anasayfa(request):
                     except:
                         pass
 
-                    # Veri Satırı Ekle
                     ws.append([row_data['kod'], row_data['hizmet'], fiyat_val])
                     current_row = ws.max_row
                     for col in range(1, 4):
                          cell = ws.cell(row=current_row, column=col)
                          cell.border = thin_border
-                         # METNİ KAYDIR (Hizmet konusu için 2. sütuna uygula)
                          if col == 2:
                              cell.alignment = Alignment(wrap_text=True, vertical='center')
-                         elif col == 3: # Fiyatları sağa yasla
+                         elif col == 3: 
                              cell.alignment = Alignment(horizontal='right', vertical='center')
                          else:
                              cell.alignment = Alignment(vertical='center')
 
-
-                # --- BÖLÜM 2: EŞLEŞEMEYENLER (ALT KISIM) ---
+                # --- BÖLÜM 2: EŞLEŞEMEYENLER ---
                 if eslesmeyen_rows:
                     ws.append([]) 
                     ws.append([]) 
@@ -166,7 +177,6 @@ def anasayfa(request):
                         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
                     for row_data in eslesmeyen_rows:
-                        # SIFIR KONTROLÜ: Eski Fiyat 0 ise boş bırak
                         eski_fiyat_val = row_data['eski_fiyat']
                         try:
                             if float(str(eski_fiyat_val).replace(',', '')) == 0:
@@ -210,38 +220,27 @@ def anasayfa(request):
                 for satir in ham_liste:
                     kod = str(satir['kod']).strip()
                     if not kod or kod == '-': continue
-
                     prefix = kod.split('-')[0] if '-' in kod else kod
                     grup_kodu = 'ÖZ' if prefix in ['ÖZ', 'SB'] else prefix
 
                     if grup_kodu != son_grup:
                         aciklama = GRUP_TANIMLARI.get(grup_kodu, f'{grup_kodu} İşlemleri')
-                        gosterim_listesi.append({
-                            'is_header': True,
-                            'kod': grup_kodu,
-                            'aciklama': aciklama
-                        })
+                        gosterim_listesi.append({'is_header': True, 'kod': grup_kodu, 'aciklama': aciklama})
                         son_grup = grup_kodu
                     satir['is_header'] = False
                     gosterim_listesi.append(satir)
-
                 veriler = gosterim_listesi
-                if not veriler:
-                    hata = f"{hedef_yil} verisi bulunamadı."
-
+                if not veriler: hata = f"{hedef_yil} verisi bulunamadı."
             except Exception as e:
                 hata = f"Hesaplama hatası: {str(e)}"
 
-    return render(request, 'core/fiyat_olusturma.html', {
-        'form': form,
-        'veriler': veriler,
-        'hata': hata
-    })
+    return render(request, 'core/fiyat_olusturma.html', {'form': form, 'veriler': veriler, 'hata': hata})
 
 def tarife_karsilastirma(request):
     veriler = None
     hata = None
     form = TarifeYuklemeForm()
+    su_anki_yil = datetime.now().year
 
     if request.method == 'POST':
         if 'analiz_et' in request.POST:
@@ -252,34 +251,27 @@ def tarife_karsilastirma(request):
                     ham_veriler, hata = tarifeleri_karsilastir(tarife_obj.eski_yil_dosyasi.path, tarife_obj.yeni_yil_dosyasi.path)
                     if ham_veriler:
                         request.session['gecici_veriler'] = ham_veriler
-                        request.session['analiz_yili'] = 2025
-
+                        request.session['analiz_yili'] = su_anki_yil 
                         gosterim_listesi = []
                         son_grup = None
-
                         for satir in ham_veriler:
                             yeni_kod = str(satir['Yeni_Kod']).strip()
                             prefix = yeni_kod.split('-')[0] if '-' in yeni_kod else yeni_kod
                             grup_kodu = 'ÖZ' if prefix in ['ÖZ', 'SB'] else prefix
-
                             if grup_kodu != son_grup:
                                 aciklama = GRUP_TANIMLARI.get(grup_kodu, f'{grup_kodu} İşlemleri')
-                                gosterim_listesi.append({
-                                    'is_header': True,
-                                    'kod': grup_kodu,
-                                    'aciklama': aciklama
-                                })
+                                gosterim_listesi.append({'is_header': True, 'kod': grup_kodu, 'aciklama': aciklama})
                                 son_grup = grup_kodu
                             satir['is_header'] = False
                             gosterim_listesi.append(satir)
                         veriler = gosterim_listesi
-
                 except Exception as e:
                     hata = f"Analiz hatası: {str(e)}"
 
         elif 'kaydet' in request.POST:
             gecici_veriler = request.session.get('gecici_veriler')
-            analiz_yili = request.session.get('analiz_yili', 2025)
+            analiz_yili = request.session.get('analiz_yili', su_anki_yil)
+            eski_yil = analiz_yili - 1
 
             if gecici_veriler:
                 try:
@@ -288,29 +280,18 @@ def tarife_karsilastirma(request):
                             yeni_obj, _ = HizmetListesi.objects.get_or_create(
                                 yil=analiz_yili,
                                 hizmet_kodu=satir['Yeni_Kod'],
-                                defaults={
-                                    'hizmet_adi': satir['Yeni_Hizmet'],
-                                    'tutar': satir['Yeni_Fiyat'].replace(',', '') if satir['Yeni_Fiyat'] != '-' else 0
-                                }
+                                defaults={'hizmet_adi': satir['Yeni_Hizmet'], 'tutar': satir['Yeni_Fiyat'].replace(',', '') if satir['Yeni_Fiyat'] != '-' else 0}
                             )
-
                             eski_obj = None
                             if satir['Eski_Kod'] != '-':
                                 eski_obj, _ = HizmetListesi.objects.get_or_create(
-                                    yil=analiz_yili - 1,
+                                    yil=eski_yil, 
                                     hizmet_kodu=satir['Eski_Kod'],
-                                    defaults={
-                                        'hizmet_adi': satir['Eski_Hizmet'],
-                                        'tutar': satir['Eski_Fiyat'].replace(',', '') if satir['Eski_Fiyat'] != '-' else 0
-                                    }
+                                    defaults={'hizmet_adi': satir['Eski_Hizmet'], 'tutar': satir['Eski_Fiyat'].replace(',', '') if satir['Eski_Fiyat'] != '-' else 0}
                                 )
-
-                            kayit_var_mi = TarifeKarsilastirma.objects.filter(yeni_hizmet=yeni_obj).exists()
-
-                            if not kayit_var_mi:
+                            if not TarifeKarsilastirma.objects.filter(yeni_hizmet=yeni_obj).exists():
                                 TarifeKarsilastirma.objects.create(
-                                    yeni_hizmet=yeni_obj,
-                                    eski_hizmet=eski_obj,
+                                    yeni_hizmet=yeni_obj, eski_hizmet=eski_obj,
                                     tutar_fark=float(satir['Fark'].replace(',', '')) if satir['Fark'] != '-' else 0,
                                     yuzde_degisim=float(satir['Degisim_Yuzde']) if satir['Degisim_Yuzde'] != '-' else 0,
                                     durum=satir['Durum']

@@ -105,10 +105,18 @@ def tarifeleri_karsilastir(eski_dosya_yolu, yeni_dosya_yolu):
                 aday_ad_clean = aday['ad'].lower().replace(" ", "")
                 if yeni_ad_clean == aday_ad_clean:
                     eslesme = aday
-                    break 
+                    break
+
+            # B. Eski İsmi Birebir İçermesine Göre Eşleşme
+            if eslesme is None:
+                for aday in adaylar:
+                    aday_ad_clean = aday['ad'].lower().replace(" ", "")
+                    if aday_ad_clean in yeni_ad_clean:
+                        eslesme = aday
+                        break
             
-            # B. Benzerlik Eşleşmesi (%85 üstü)
-            if not eslesme:
+            # C. Benzerlik Eşleşmesi (%85 üstü)
+            if eslesme is None:
                 for aday in adaylar:
                     skor = benzerlik_orani(yeni_ad.lower(), aday['ad'].lower())
                     if skor > 0.85 and skor > en_yuksek_skor:
@@ -236,7 +244,7 @@ def fiyat_listesi_hazirla(hedef_yil, excel_path=None):
             # Sütunları belirle
             col_kod = 'KOD' if 'KOD' in df.columns else df.columns[0]
             col_ad = 'HİZMET KONUSU' if 'HİZMET KONUSU' in df.columns else df.columns[1]
-            col_fiyat = '2024 Yılı Ücretlendirme' # Senin dosya formatın
+            col_fiyat = '2025 Yılı Ücretlendirme' # Senin dosya formatın
 
             if col_kod in df.columns and col_fiyat in df.columns:
                 for index, row in df.iterrows():
@@ -301,7 +309,15 @@ def fiyat_listesi_hazirla(hedef_yil, excel_path=None):
                     eslesme = aday
                     break
             
-            # B. Benzerlik Eşleşmesi (%85 üstü)
+            # B. Eski İsmi Birebir İçermesine Göre Eşleşme
+            if eslesme is None:
+                for aday in adaylar:
+                    aday_ad_clean = aday['ad'].lower().replace(" ", "")
+                    if aday_ad_clean in yeni_ad_clean:
+                        eslesme = aday
+                        break
+            
+            # C. Benzerlik Eşleşmesi (%85 üstü)
             if not eslesme:
                 for aday in adaylar:
                     skor = benzerlik_orani(yeni_ad.lower(), aday['ad'].lower())
