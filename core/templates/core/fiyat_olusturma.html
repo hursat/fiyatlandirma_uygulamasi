@@ -117,7 +117,7 @@
                                     <td class="p-1">
                                         {% if satir.durum != 'Eşleşemeyen' %}
                                             <input type="text" class="form-control form-control-sm text-center fw-bold text-primary fark-input" 
-                                                value="{{ satir.yeni_fark_yuzde|stringformat:'.2f' }}">
+                                                value="{{ satir.yeni_fark_yuzde|floatformat:2 }}">
                                         {% else %}
                                             <span class="text-center d-block">-</span>
                                         {% endif %}
@@ -126,7 +126,7 @@
                                     <td class="p-1">
                                         {% if satir.durum != 'Eşleşemeyen' %}
                                             <input type="text" name="liste_fiyat[]" class="form-control form-control-sm text-end fw-bold text-success fiyat-input" 
-                                                value="{{ satir.yeni_musteri_fiyat|stringformat:'.2f' }}">
+                                                value="{{ satir.yeni_musteri_fiyat|floatformat:2 }}">
                                         {% else %}
                                             <span class="text-center d-block">-</span>
                                             <input type="hidden" name="liste_fiyat[]" value="0">
@@ -154,35 +154,73 @@
 
             if (!fiyatInput || !asgariHucre) return;
 
+            // 1. Başlangıçta gelen verideki (Python'dan gelen) noktaları virgüle çevir (Görsel Düzeltme)
+            // Eğer Python "12.50" gönderdiyse ekranda "12,50" görünsün diye.
+            if (fiyatInput.value.includes('.')) fiyatInput.value = fiyatInput.value.replace('.', ',');
+            if (farkInput.value.includes('.')) farkInput.value = farkInput.value.replace('.', ',');
+
+            // Asgari ücreti sayıya çevir (Hesaplama için nokta şart)
             const asgariUcret = parseFloat(asgariHucre.getAttribute('data-yeni-asgari').replace(',', '.'));
 
             function yuvarlaBesYukari(val) {
                 return Math.ceil(val / 5) * 5;
             }
 
+            // Sayıyı TR formatında (virgüllü) string'e çevirir
+            function formatTR(num) {
+                // toFixed(2) -> "12.50" yapar. replace ile "12,50" yaparız.
+                return num.toFixed(2).replace('.', ',');
+            }
+
+            // String'i (virgüllü veya noktalı) sayıya çevirir
+            function parseTR(str) {
+                if (!str) return 0;
+                // Virgülü noktaya çevir ki JS hesaplayabilsin
+                return parseFloat(str.replace(',', '.'));
+            }
+
+            // --- YÜZDE DEĞİŞİNCE ---
             farkInput.addEventListener('change', function() {
-                let yuzde = parseFloat(this.value);
+                let yuzde = parseTR(this.value); // Virgülü noktaya çevirip al
                 if (isNaN(yuzde)) yuzde = 0;
 
                 if (asgariUcret > 0) {
                     let hamFiyat = asgariUcret * (1 + (yuzde / 100));
                     let yuvarlanmisFiyat = yuvarlaBesYukari(hamFiyat);
-                    fiyatInput.value = yuvarlanmisFiyat.toFixed(2);
+                    
+                    // Ekrana yazarken tekrar virgül yapıyoruz
+                    fiyatInput.value = formatTR(yuvarlanmisFiyat);
+                    
+                    // Yüzdeyi yeni fiyata göre revize et
                     let revizeYuzde = ((yuvarlanmisFiyat - asgariUcret) / asgariUcret) * 100;
-                    this.value = revizeYuzde.toFixed(2);
+                    this.value = formatTR(revizeYuzde);
                 }
             });
 
-            fiyatInput.addEventListener('input', function() {
-                let girilenFiyat = parseFloat(this.value);
+            // --- FİYAT DEĞİŞİNCE ---
+            fiyatInput.addEventListener('input', function() { // 'change' yerine 'input' veya 'blur' kullanılabilir
+                // Kullanıcı yazarken virgül kullanıyor, biz onu anlık hesap için noktaya çeviriyoruz
+                let girilenFiyat = parseTR(this.value);
                 if (isNaN(girilenFiyat)) girilenFiyat = 0;
 
                 if (asgariUcret > 0) {
                     let yeniYuzde = ((girilenFiyat - asgariUcret) / asgariUcret) * 100;
-                    farkInput.value = yeniYuzde.toFixed(2);
+                    // Yüzde kutusuna virgüllü yaz
+                    farkInput.value = formatTR(yeniYuzde);
                 } else {
-                    farkInput.value = 0;
+                    farkInput.value = "0,00";
                 }
+            });
+            
+            // Kullanıcı kutudan çıkınca (blur) görüntüyü güzelleştir (örn: 12 yazdıysa 12,00 olsun)
+            fiyatInput.addEventListener('blur', function() {
+                 let val = parseTR(this.value);
+                 this.value = formatTR(val);
+            });
+            
+            farkInput.addEventListener('blur', function() {
+                 let val = parseTR(this.value);
+                 this.value = formatTR(val);
             });
         });
     });
