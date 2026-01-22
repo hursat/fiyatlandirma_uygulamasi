@@ -4,12 +4,12 @@ from django.http import HttpResponse
 from .forms import TarifeYuklemeForm, FiyatListesiOlusturmaForm
 from .services import tarifeleri_karsilastir, fiyat_listesi_hazirla
 from .models import HizmetListesi, TarifeKarsilastirma
-import pandas as pd
 from decimal import Decimal
-import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from datetime import datetime
+import io
+import pandas as pd
 
 # GRUP TANIMLARI
 GRUP_TANIMLARI = {
@@ -293,8 +293,9 @@ def anasayfa(request):
                     gosterim_listesi.append(satir)
                 veriler = gosterim_listesi
                 if not veriler: hata = f"{hedef_yil} verisi bulunamadı."
+
             except Exception as e:
-                hata = f"Hesaplama hatası: {str(e)}"
+                hata = f"Excel oluşturulurken hata: {str(e)}"
 
     return render(request, 'core/fiyat_olusturma.html', {'form': form, 'veriler': veriler, 'hata': hata})
 

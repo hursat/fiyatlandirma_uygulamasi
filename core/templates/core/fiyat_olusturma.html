@@ -116,7 +116,7 @@
 
                                     <td class="p-1">
                                         {% if satir.durum != 'Eşleşemeyen' %}
-                                            <input type="number" step="0.1" class="form-control form-control-sm text-center fw-bold text-primary fark-input" 
+                                            <input type="text" class="form-control form-control-sm text-center fw-bold text-primary fark-input" 
                                                 value="{{ satir.yeni_fark_yuzde|stringformat:'.2f' }}">
                                         {% else %}
                                             <span class="text-center d-block">-</span>
@@ -125,7 +125,7 @@
 
                                     <td class="p-1">
                                         {% if satir.durum != 'Eşleşemeyen' %}
-                                            <input type="number" step="0.01" name="liste_fiyat[]" class="form-control form-control-sm text-end fw-bold text-success fiyat-input" 
+                                            <input type="text" name="liste_fiyat[]" class="form-control form-control-sm text-end fw-bold text-success fiyat-input" 
                                                 value="{{ satir.yeni_musteri_fiyat|stringformat:'.2f' }}">
                                         {% else %}
                                             <span class="text-center d-block">-</span>
